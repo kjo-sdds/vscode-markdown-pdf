@@ -394,13 +394,13 @@ function exportPdf(data, filename, type, uri) {
           return;
         }
 
-        const puppeteer = require('puppeteer');
+        const puppeteer = require('puppeteer-core');
         // create temporary file
         var f = path.parse(filename);
         var tmpfilename = path.join(f.dir, f.name + '_tmp.html');
         exportHtml(data, tmpfilename);
         var options = {
-          executablePath: vscode.workspace.getConfiguration('markdown-pdf')['executablePath'] || puppeteer.executablePath(),
+          executablePath: vscode.workspace.getConfiguration('markdown-pdf')['executablePath'] || puppeteer.executablePath('chrome'),
           args: ['--lang='+vscode.env.language, '--no-sandbox', '--disable-setuid-sandbox']
           // Setting Up Chrome Linux Sandbox
           // https://github.com/puppeteer/puppeteer/blob/master/docs/troubleshooting.md#setting-up-chrome-linux-sandbox
@@ -798,8 +798,8 @@ function checkPuppeteerBinary() {
     }
 
     // bundled Chromium
-    const puppeteer = require('puppeteer');
-    executablePath = puppeteer.executablePath();
+    const puppeteer = require('puppeteer-core');
+    executablePath = puppeteer.executablePath('chrome');
     if (isExistsPath(executablePath)) {
       return true;
     } else {
@@ -823,9 +823,9 @@ function installChromium() {
     setProxy();
 
     var StatusbarMessageTimeout = vscode.workspace.getConfiguration('markdown-pdf')['StatusbarMessageTimeout'];
-    const puppeteer = require('puppeteer');
+    const puppeteer = require('puppeteer-core');
     const browserFetcher = puppeteer.createBrowserFetcher();
-    const revision = require(path.join(__dirname, 'node_modules', 'puppeteer', 'package.json')).puppeteer.chromium_revision;
+    const revision = require(path.join(__dirname, 'node_modules', 'puppeteer-core', 'package.json')).puppeteer.chromium_revision;
     const revisionInfo = browserFetcher.revisionInfo(revision);
 
     // download Chromium
