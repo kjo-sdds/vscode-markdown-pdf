@@ -6,8 +6,8 @@ var url = require('url');
 var os = require('os');
 var INSTALL_CHECK = false;
 
-function activate(context) {
-  init();
+async function activate(context) {
+  await init();
 
   var commands = [
     vscode.commands.registerCommand('extension.markdown-pdf.settings', async function () { await markdownPdf('settings'); }),
@@ -788,7 +788,19 @@ function fixHref(resource, href) {
   }
 }
 
-function checkPuppeteerBinary() {
+async function browserOptions() {
+  const unresolvedBuildId = require("puppeteer-core/lib/cjs/puppeteer/revisions.js").PUPPETEER_REVISIONS.chrome;
+  const browsersAPI = require("@puppeteer/browsers");
+  const browserPlatform = browsersAPI.detectBrowserPlatform();
+  const buildId = await browsersAPI.resolveBuildId('chromium', browserPlatform, unresolvedBuildId);
+  return {
+    browser: 'chromium',
+    buildId: buildId,
+    cacheDir: path.join(__dirname, 'browserCache'),
+  };
+}
+
+async function checkPuppeteerBinary() {
   try {
     // settings.json
     var executablePath = vscode.workspace.getConfiguration('markdown-pdf')['executablePath'] || ''
@@ -798,8 +810,8 @@ function checkPuppeteerBinary() {
     }
 
     // bundled Chromium
-    const puppeteer = require('puppeteer-core');
-    executablePath = puppeteer.executablePath('chrome');
+    const browsersAPI = require('@puppeteer/browsers');
+    executablePath = browsersAPI.computeExecutablePath(await browserOptions());
     if (isExistsPath(executablePath)) {
       return true;
     } else {
@@ -814,7 +826,7 @@ function checkPuppeteerBinary() {
  * puppeteer install.js
  * https://github.com/GoogleChrome/puppeteer/blob/master/install.js
  */
-function installChromium() {
+async function installChromium() {
   try {
     vscode.window.showInformationMessage('[Markdown PDF] Installing Chromium ...');
     var statusbarmessage = vscode.window.setStatusBarMessage('$(markdown) Installing Chromium ...');
@@ -822,23 +834,15 @@ function installChromium() {
     // proxy setting
     setProxy();
 
+    // Remove previous browsers
+    deleteFile((await browserOptions()).cacheDir);
+
     var StatusbarMessageTimeout = vscode.workspace.getConfiguration('markdown-pdf')['StatusbarMessageTimeout'];
-    const puppeteer = require('puppeteer-core');
-    const browserFetcher = puppeteer.createBrowserFetcher();
-    const revision = require(path.join(__dirname, 'node_modules', 'puppeteer-core', 'package.json')).puppeteer.chromium_revision;
-    const revisionInfo = browserFetcher.revisionInfo(revision);
+    const browsersAPI = require('@puppeteer/browsers');
+    browsersAPI.install({...(await browserOptions()), downloadProgressCallback: onProgress}).then(onSuccess).catch(onError);
 
-    // download Chromium
-    browserFetcher.download(revisionInfo.revision, onProgress)
-      .then(() => browserFetcher.localRevisions())
-      .then(onSuccess)
-      .catch(onError);
-
-    function onSuccess(localRevisions) {
-      console.log('Chromium downloaded to ' + revisionInfo.folderPath);
-      localRevisions = localRevisions.filter(revision => revision !== revisionInfo.revision);
-      // Remove previous chromium revisions.
-      const cleanupOldVersions = localRevisions.map(revision => browserFetcher.remove(revision));
+    function onSuccess(installedBrowser) {
+      console.log('Chromium downloaded to ' + installedBrowser.path);
 
       if (checkPuppeteerBinary()) {
         INSTALL_CHECK = true;
@@ -891,12 +895,12 @@ function setBooleanValue(a, b) {
   }
 }
 
-function init() {
+async function init() {
   try {
-    if (checkPuppeteerBinary()) {
+    if (await checkPuppeteerBinary()) {
       INSTALL_CHECK = true;
     } else {
-      installChromium();
+      await installChromium();
     }
   } catch (error) {
     showErrorMessage('init()', error);
