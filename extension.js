@@ -400,7 +400,7 @@ function exportPdf(data, filename, type, uri) {
         var tmpfilename = path.join(f.dir, f.name + '_tmp.html');
         exportHtml(data, tmpfilename);
         var options = {
-          executablePath: vscode.workspace.getConfiguration('markdown-pdf')['executablePath'] || puppeteer.executablePath('chrome'),
+          executablePath: vscode.workspace.getConfiguration('markdown-pdf')['executablePath'] || (await getBundledBrowserPath()),
           args: ['--lang='+vscode.env.language, '--no-sandbox', '--disable-setuid-sandbox']
           // Setting Up Chrome Linux Sandbox
           // https://github.com/puppeteer/puppeteer/blob/master/docs/troubleshooting.md#setting-up-chrome-linux-sandbox
@@ -792,12 +792,17 @@ async function browserOptions() {
   const unresolvedBuildId = require("puppeteer-core/lib/cjs/puppeteer/revisions.js").PUPPETEER_REVISIONS.chrome;
   const browsersAPI = require("@puppeteer/browsers");
   const browserPlatform = browsersAPI.detectBrowserPlatform();
-  const buildId = await browsersAPI.resolveBuildId('chromium', browserPlatform, unresolvedBuildId);
+  const buildId = await browsersAPI.resolveBuildId('chrome', browserPlatform, unresolvedBuildId);
   return {
-    browser: 'chromium',
+    browser: 'chrome',
     buildId: buildId,
     cacheDir: path.join(__dirname, 'browserCache'),
   };
+}
+
+async function getBundledBrowserPath() {
+  const browsersAPI = require('@puppeteer/browsers');
+  return browsersAPI.computeExecutablePath(await browserOptions());
 }
 
 async function checkPuppeteerBinary() {
@@ -810,8 +815,7 @@ async function checkPuppeteerBinary() {
     }
 
     // bundled Chromium
-    const browsersAPI = require('@puppeteer/browsers');
-    executablePath = browsersAPI.computeExecutablePath(await browserOptions());
+    executablePath = await getBundledBrowserPath();
     if (isExistsPath(executablePath)) {
       return true;
     } else {
@@ -849,7 +853,6 @@ async function installChromium() {
         statusbarmessage.dispose();
         vscode.window.setStatusBarMessage('$(markdown) Chromium installation succeeded!', StatusbarMessageTimeout);
         vscode.window.showInformationMessage('[Markdown PDF] Chromium installation succeeded.');
-        return Promise.all(cleanupOldVersions);
       }
     }
 
