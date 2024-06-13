@@ -400,6 +400,25 @@ If the download is not successful or you want to avoid downloading every time yo
 "markdown-pdf.scale": 1
 ```
 
+#### Yaml metadata
+Support was added for basic Yaml metadata :
+```yaml
+---
+title: my witty title
+customKey: hello
+---
+```
+It does *NOT* support subkeys. Keys should only be made out of alphanumeric characters (plus "-", "_"), others are trimmed out. It must be the first *LINE* of your markdown file. The `title` key is special in that it also replaces the default title propery (filename).
+
+They *will* be replaced *in document* when surrounded by double "%" during html conversion (thus replaced in PDF) :
+```
+My precious message is : %%customKey%%
+```
+Will be output as :
+```
+My precious message is : hello
+```
+
 ### PDF options
 
   - pdf only. [puppeteer page.pdf options](https://github.com/puppeteer/puppeteer/blob/main/docs/api/puppeteer.pdfoptions.md)
@@ -437,6 +456,7 @@ If the download is not successful or you want to avoid downloading every time yo
     ```javascript
     "markdown-pdf.headerTemplate": "<div style=\"font-size: 9px; margin-left: 1cm;\"> <span class='title'></span></div> <div style=\"font-size: 9px; margin-left: auto; margin-right: 1cm; \"> <span class='date'></span></div>",
     ```
+  - Metadata are also replaced in Header/Footer
 
 #### `markdown-pdf.footerTemplate`
   - Specifies the HTML template for outputting the footer

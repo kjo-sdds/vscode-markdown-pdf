@@ -34,6 +34,27 @@ function deactivate() {
 }
 exports.deactivate = deactivate;
 
+function getMetadata(txt){
+  const lines = txt.split(/\r?\n/); // This regex handles both Windows and Unix line endings
+  let metadata = {};
+  // Loop through the lines with their indices
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    if ( (i == 0 && line.indexOf('---') == -1) // no metadatabloc
+          || (i > 0 && line.indexOf('---') != -1) ) { // end of metadatabloc
+      break;
+    }
+    // Handle line
+    if (line.includes(":")) {
+      let parts = line.split(":");
+      let key = parts[0].trim().replace(/[^a-zA-Z0-9\-_]/g, "");
+      let val = parts.slice(1).join(":").trim();
+      metadata[key] = val;
+    }
+  }
+  return metadata;
+}
+
 async function markdownPdf(option_type) {
 
   try {
@@ -90,9 +111,10 @@ async function markdownPdf(option_type) {
         if (types_format.indexOf(type) >= 0) {
           filename = mdfilename.replace(ext, '.' + type);
           var text = editor.document.getText();
-          var content = convertMarkdownToHtml(mdfilename, type, text);
-          var html = makeHtml(content, uri);
-          await exportPdf(html, filename, type, uri);
+          var metadata = getMetadata(text);
+          var content = convertMarkdownToHtml(mdfilename, type, transformTemplate(text, metadata));
+          var html = makeHtml(content, uri, metadata);
+          await exportPdf(html, filename, type, uri, metadata);
         } else {
           showErrorMessage('markdownPdf().2 Supported formats: html, pdf, png, jpeg.');
           return;
@@ -320,14 +342,14 @@ function Slug(string) {
 /*
  * make html
  */
-function makeHtml(data, uri) {
+function makeHtml(data, uri, metadata) {
   try {
     // read styles
     var style = '';
     style += readStyles(uri);
 
     // get title
-    var title = path.basename(uri.fsPath);
+    var title = metadata.title || path.basename(uri.fsPath);
 
     // read template
     var filename = path.join(__dirname, 'template', 'template.html');
@@ -367,7 +389,7 @@ function exportHtml(data, filename) {
 /*
  * export a html to a pdf file (html-pdf)
  */
-function exportPdf(data, filename, type, uri) {
+function exportPdf(data, filename, type, uri, metadata) {
 
   if (!INSTALL_CHECK) {
     return;
@@ -430,8 +452,8 @@ function exportPdf(data, filename, type, uri) {
             path: exportFilename,
             scale: vscode.workspace.getConfiguration('markdown-pdf', uri)['scale'],
             displayHeaderFooter: vscode.workspace.getConfiguration('markdown-pdf', uri)['displayHeaderFooter'],
-            headerTemplate: transformTemplate(vscode.workspace.getConfiguration('markdown-pdf', uri)['headerTemplate'] || ''),
-            footerTemplate: transformTemplate(vscode.workspace.getConfiguration('markdown-pdf', uri)['footerTemplate'] || ''),
+            headerTemplate: transformTemplate(vscode.workspace.getConfiguration('markdown-pdf', uri)['headerTemplate'] || '', metadata),
+            footerTemplate: transformTemplate(vscode.workspace.getConfiguration('markdown-pdf', uri)['footerTemplate'] || '', metadata),
             printBackground: vscode.workspace.getConfiguration('markdown-pdf', uri)['printBackground'],
             landscape: landscape_option,
             pageRanges: vscode.workspace.getConfiguration('markdown-pdf', uri)['pageRanges'] || '',
@@ -516,7 +538,7 @@ function exportPdf(data, filename, type, uri) {
  * - `%%ISO-DATE%%` – For an ISO-based date format: `YYYY-MM-DD`
  * - `%%ISO-TIME%%` – For an ISO-based time format: `hh:mm:ss`
  */
-function transformTemplate(templateText) {
+function transformTemplate(templateText, metadata) {
   if (templateText.indexOf('%%ISO-DATETIME%%') !== -1) {
     templateText = templateText.replace('%%ISO-DATETIME%%', new Date().toISOString().substr(0, 19).replace('T', ' '));
   }
@@ -526,7 +548,13 @@ function transformTemplate(templateText) {
   if (templateText.indexOf('%%ISO-TIME%%') !== -1) {
     templateText = templateText.replace('%%ISO-TIME%%', new Date().toISOString().substr(11, 8));
   }
-
+  for (let key in metadata) {
+    if (metadata.hasOwnProperty(key)) {
+      if (templateText.indexOf('%%'+key+'%%') !== -1) {
+        templateText = templateText.replace('%%'+key+'%%', metadata[key]);
+      }
+    }
+  }
   return templateText;
 }
 
